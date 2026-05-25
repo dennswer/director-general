@@ -4,25 +4,23 @@
   self-contained on any machine with an NVIDIA GPU + recent driver — even
   without a separate CUDA Toolkit install.
 
-  Source paths use the CUDA_PATH env var, which is set by the Jimver/cuda-
-  toolkit action in CI (and by the standard CUDA installer on developer
-  machines). WiX evaluates $(env.CUDA_PATH) at light/candle invocation
-  time, so this resolves to the actual install location.
-
-  These DLLs are CUDA 12.x compatible; they must match the major version
-  whisper-rs / whisper.cpp was compiled against (we pin CUDA 12.6 in CI).
+  Source paths are relative to this .wxs file. The CI workflow copies the
+  three DLLs from $env:CUDA_PATH\bin into ./cuda-bin/ before invoking
+  `tauri build`, so candle.exe can resolve them at WiX compile time without
+  depending on environment variables (which were unreliable across the
+  npm → cargo → tauri-bundler → candle invocation chain).
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Fragment>
     <DirectoryRef Id="INSTALLDIR">
-      <Component Id="CudaRuntimeDlls" Guid="*" Win64="yes">
-        <File Id="CudaRt"
-              Source="$(env.CUDA_PATH)\bin\cudart64_12.dll"
+      <Component Id="CudaRuntimeDlls" Guid="3F5A8A1C-1F4B-4F4F-9F1D-1C2B3A4E5F60" Win64="yes">
+        <File Id="CudaRtDll"
+              Source="..\cuda-bin\cudart64_12.dll"
               KeyPath="yes"/>
-        <File Id="Cublas"
-              Source="$(env.CUDA_PATH)\bin\cublas64_12.dll"/>
-        <File Id="CublasLt"
-              Source="$(env.CUDA_PATH)\bin\cublasLt64_12.dll"/>
+        <File Id="CublasDll"
+              Source="..\cuda-bin\cublas64_12.dll"/>
+        <File Id="CublasLtDll"
+              Source="..\cuda-bin\cublasLt64_12.dll"/>
       </Component>
     </DirectoryRef>
 

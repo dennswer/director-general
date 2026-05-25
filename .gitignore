@@ -42,3 +42,6 @@ playwright-report
 
 # Claude Code local settings (may contain approved-command snapshots with secrets)
 .claude/
+
+# CUDA DLLs staged by CI for WiX bundling
+src-tauri/cuda-bin/

@@ -62,6 +62,16 @@ jobs:
           & "$env:CUDA_PATH\bin\nvcc.exe" --version
           Get-ChildItem "$env:CUDA_PATH\bin\cudart64_12.dll", "$env:CUDA_PATH\bin\cublas64_12.dll", "$env:CUDA_PATH\bin\cublasLt64_12.dll"
 
+      - name: Stage CUDA DLLs into project (for WiX bundling)
+        shell: pwsh
+        run: |
+          $dest = "src-tauri/cuda-bin"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item "$env:CUDA_PATH\bin\cudart64_12.dll"   "$dest/"
+          Copy-Item "$env:CUDA_PATH\bin\cublas64_12.dll"   "$dest/"
+          Copy-Item "$env:CUDA_PATH\bin\cublasLt64_12.dll" "$dest/"
+          Get-ChildItem $dest
+
       - name: Install npm dependencies
         run: npm ci
 
@@ -70,7 +80,8 @@ jobs:
         # bundles cudart/cublas DLLs alongside the exe via the WiX fragment,
         # so the installer is self-contained for any machine with an NVIDIA
         # driver (no separate CUDA Toolkit install required on the user side).
-        run: npm run tauri build -- --features cuda
+        # --verbose surfaces candle.exe stderr if the WiX step fails.
+        run: npm run tauri build -- --verbose --features cuda
         env:
           CUDA_PATH: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
 
