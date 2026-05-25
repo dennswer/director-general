@@ -1,0 +1,62 @@
+# Voiceeee — Learnings
+
+Decizii tehnice și de ce.
+
+## 2026-04-08 — Stack inițial
+
+### De ce Tauri 2 (nu Electron)
+Tauri compilează un binary nativ ~10 MB, Electron duce 100+ MB. Pentru această aplicație în plus, avem nevoie de:
+- Audio capture system-wide (cpal — pure Rust)
+- Global keyboard hook (tauri-plugin-global-shortcut, peste GH `global-hotkey`)
+- Simulare keystrokes (enigo)
+Toate astea funcționează nativ în Rust și ar fi fost posibile în Electron doar prin native modules (chinuitor pe Windows). Tauri = backend Rust direct → simplu.
+
+### De ce whisper.cpp prin whisper-rs (nu OpenAI Whisper Python)
+- **Local-only**: zero Python runtime, zero pip, zero venv
+- **Single binary**: la final user instalează un MSI, gata
+- **CUDA optional**: feature flag în Cargo.toml, fără probleme cu PyTorch CUDA versions
+- **Performanță**: whisper.cpp e mai rapid decât Python whisper pe CPU, comparabil cu faster-whisper pe GPU
+- whisper-rs e singura librărie de binding Rust matură (v0.16, mentenanță activă)
+
+### De ce large-v3-turbo default (nu large-v3 sau medium)
+- **Turbo = 5.4x mai rapid decât large-v3** prin reducerea decoder layers de la 32 la 4
+- Calitate ~similară cu large-v2 (mai bună decât medium pe RO)
+- Encap în 1.55 GB → încape lejer în 4 GB VRAM al RTX 3050 Laptop
+- large-v3 (2.93 GB) e descărcat ca opțiune "max quality" în UI dacă user vrea
+
+### De ce React + TS + Tailwind (nu Svelte/vanilla)
+Sergiu învață activ aceste tehnologii (vine din PHP/WordPress). Settings UI = teren bun de practică pentru:
+- Componente React funcționale
+- Hooks (useState, useEffect, custom hook pentru Tauri events)
+- TypeScript strict (typing pentru IPC commands)
+- Tailwind utility classes
+Costul ușor de complexitate față de vanilla e justificat de valoarea educațională.
+
+### De ce JSON nu SQLite pentru history
+- < 1000 entries probabil → JSON e suficient
+- Inspectabil manual cu orice text editor (debugging facil)
+- Zero deps native suplimentare
+- serde_json e standard în ecosistemul Rust
+SQLite ar fi mai bun la >10k entries sau dacă voiam căutare full-text.
+
+### De ce backtick (`` ` ``) ca default hotkey
+Cerință explicită Sergiu. Are tradeoff: în terminale/dead key Windows poate da bătăi de cap. Mitigation: UI permite remap în 2 clickuri.
+
+## 2026-04-08 — Faza 1 build issues
+
+### CMake Visual Studio generator vs Ninja
+**Problem:** whisper.cpp's default CMake build picks generator `"Visual Studio 17 2022"`. With **Visual Studio Build Tools 2022** (not full Visual Studio), CMake fails: `could not find any instance of Visual Studio`.
+
+**Soluție:** Instalat Ninja (`winget install Ninja-build.Ninja`) și setat `CMAKE_GENERATOR=Ninja` în env. Ninja e și mai rapid decât MSBuild, deci win-win.
+
+### vcvars64.bat needs vswhere.exe
+**Problem:** Calling `vcvars64.bat` din cmd printează `'vswhere.exe' is not recognized` și environment-ul MSVC nu e configurat. vcvars64.bat → vcvarsall.bat → vsdevcmd.bat → calls `vswhere` fără path absolut.
+
+**Soluție:** Adăugat `C:\Program Files (x86)\Microsoft Visual Studio\Installer` în PATH la începutul `build-rust.cmd` ca să găsească vswhere.
+
+### Tool-uri proaspăt instalate vs PATH bash existent
+**Problem:** Bash session care rulează în Claude Code Tool și-a snapshot-uit `PATH` la pornire. Cargo, CMake, LLVM, CUDA, Ninja toate instalate după pornire → nu apar în `where cargo` etc.
+
+**Soluție:** `build-rust.cmd` adaugă explicit căile absolute la PATH înainte de cargo. Poate fi fix-uit definitiv reluând bash-ul.
+
+## TBD — adăug pe parcurs
