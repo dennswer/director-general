@@ -87,11 +87,31 @@ Plan complet: `C:\Users\Dennswer\.claude\plans\pure-jingling-falcon.md`
   - [x] **Verificat E2E:** Tauri dev rulează, hotkey înregistrat, model găsit
   - [x] **Verificat vizual:** screenshots Playwright pe toate 3 tab-uri cu mock invoke (UI render perfect)
 
-- [ ] **Faza 7 — Polish**
-  - [ ] Tray icon
-  - [ ] Autostart Windows
-  - [ ] Cleanup WAV >7 zile
-  - [ ] Build MSI release
+- [x] **Faza 7 — Polish** ✅ (parțial, în Faza 8 finalizat)
+  - [x] Tray icon
+  - [x] Autostart Windows
+  - [x] Cleanup WAV >7 zile
+
+- [x] **Faza 8 — Rebrand "Director General" + feature creep** ✅
+  - [x] Repo public: https://github.com/dennswer/director-general
+  - [x] Rebrand voiceeee → director-general (Cargo, package.json, tauri.conf, identifier ro.bossnet.directorgeneral)
+  - [x] Lucide-react icons în UI
+  - [x] Microphone picker (cpal enumerate)
+  - [x] Common-words / initial_prompt pentru Whisper
+  - [x] Active window title în history (Win32 GetForegroundWindow)
+  - [x] Caps Lock low-level keyboard hook (WH_KEYBOARD_LL) — suprimă toggle-ul OS
+  - [x] Always-on-top overlay window (~180×56 px) cu equalizer animat + X stop
+  - [x] Vite multi-page build (main + overlay)
+  - [x] whisper-rs cuda → optional cargo feature (CI build CPU-only)
+  - [x] GitHub Actions workflow Windows MSI/NSIS
+  - [x] MIT LICENSE
+  - [x] README
+
+  **Învățat:**
+  - Tauri `WindowConfig` are field `transparent` și `shadow` care permit overlay cu colțuri rotunjite și fără background; combo cu `decorations:false, alwaysOnTop:true, skipTaskbar:true, focus:false`
+  - Pentru a păstra hotkey-ul actual NEFOLOSIND `RegisterHotKey` (care nu poate consuma tastă), folosim `SetWindowsHookExW(WH_KEYBOARD_LL)` pe un thread cu message pump. Returnând `LRESULT(1)` din hook proc consumi tasta înainte ca OS să o proceseze.
+  - Channel între hook proc și restul aplicației: hook proc rulează pe thread-ul lui, nu poate accesa `tauri::State` direct → folosim `mpsc::Sender<()>` într-un `OnceLock<HookState>`.
+  - Capabilities trebuie să listeze toate window labels (`["main", "overlay"]`) altfel a doua fereastră nu poate invoca command-uri
 
 ## STOP-uri planificate
 

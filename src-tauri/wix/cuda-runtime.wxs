@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Bundle the CUDA runtime DLLs alongside the app executable so the MSI is
+  self-contained on any machine with an NVIDIA GPU + recent driver — even
+  without a separate CUDA Toolkit install.
+
+  Source paths use the CUDA_PATH env var, which is set by the Jimver/cuda-
+  toolkit action in CI (and by the standard CUDA installer on developer
+  machines). WiX evaluates $(env.CUDA_PATH) at light/candle invocation
+  time, so this resolves to the actual install location.
+
+  These DLLs are CUDA 12.x compatible; they must match the major version
+  whisper-rs / whisper.cpp was compiled against (we pin CUDA 12.6 in CI).
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="CudaRuntimeDlls" Guid="*" Win64="yes">
+        <File Id="CudaRt"
+              Source="$(env.CUDA_PATH)\bin\cudart64_12.dll"
+              KeyPath="yes"/>
+        <File Id="Cublas"
+              Source="$(env.CUDA_PATH)\bin\cublas64_12.dll"/>
+        <File Id="CublasLt"
+              Source="$(env.CUDA_PATH)\bin\cublasLt64_12.dll"/>
+      </Component>
+    </DirectoryRef>
+
+    <ComponentGroup Id="CudaRuntimeGroup">
+      <ComponentRef Id="CudaRuntimeDlls"/>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

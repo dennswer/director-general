@@ -35,10 +35,27 @@ npm run tauri dev                         # CPU build (any Windows machine)
 
 ## Building a release
 
-GitHub Actions builds an unsigned MSI/NSIS bundle for every push to `main`.
-See [`.github/workflows/build.yml`](.github/workflows/build.yml). The CI
-artefact is a CPU-only build — recompile locally with `--features cuda` if
-you have an NVIDIA GPU and want acceleration.
+GitHub Actions builds an unsigned MSI + NSIS bundle for every push to `main`.
+See [`.github/workflows/build.yml`](.github/workflows/build.yml).
+
+**The CI build is GPU-accelerated (`--features cuda`).** It compiles
+whisper.cpp against CUDA 12.6 and bundles `cudart64_12.dll`, `cublas64_12.dll`
+and `cublasLt64_12.dll` *alongside the executable* via a custom WiX fragment
+(see [`src-tauri/wix/cuda-runtime.wxs`](src-tauri/wix/cuda-runtime.wxs)). That
+means the **MSI is self-contained on any machine with an NVIDIA driver** —
+no separate CUDA Toolkit install required on the user side.
+
+Runtime behaviour:
+
+- On an NVIDIA machine with a working driver → GPU acceleration kicks in
+  automatically (≈0.2× real-time on an RTX 3050).
+- If the GPU init fails for any reason (no NVIDIA card, stale driver, model
+  too big for VRAM) → the app silently falls back to CPU inference. Still
+  works, just slower.
+
+The NSIS `.exe` installer does *not* include the CUDA DLLs (NSIS doesn't
+share the WiX fragment) — install the MSI if you want the self-contained
+experience, or install CUDA Toolkit 12.x system-wide if you prefer NSIS.
 
 ## Hotkey notes
 

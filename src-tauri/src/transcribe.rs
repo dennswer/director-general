@@ -21,13 +21,21 @@ pub struct Transcriber {
 
 impl Transcriber {
     pub fn new(model_path: &Path) -> Result<Self> {
-        let mut params = WhisperContextParameters::default();
-        // GPU is only meaningful when built with the `cuda` feature; on a CPU build
-        // whisper-rs ignores this flag.
-        params.use_gpu(true);
-
-        let ctx = WhisperContext::new_with_params(model_path, params)
-            .with_context(|| format!("failed to load whisper model from {model_path:?}"))?;
+        // On a CUDA-enabled build we try GPU first and silently fall back to
+        // CPU if init fails — this covers machines without an NVIDIA driver,
+        // missing cuBLAS DLLs, or a GPU that's too small for the model.
+        // On a CPU-only build the `use_gpu(true)` flag is ignored by whisper-rs.
+        let ctx = match try_load(model_path, true) {
+            Ok(c) => c,
+            Err(e_gpu) => {
+                eprintln!(
+                    "[transcribe] GPU init failed, falling back to CPU: {e_gpu:#}"
+                );
+                try_load(model_path, false).with_context(|| {
+                    format!("failed to load whisper model from {model_path:?} (CPU fallback after GPU error: {e_gpu:#})")
+                })?
+            }
+        };
         Ok(Self {
             ctx: Arc::new(ctx),
         })
@@ -119,6 +127,13 @@ impl LazyTranscriber {
         }
         guard.as_ref().unwrap().transcribe(wav, language, initial_prompt)
     }
+}
+
+fn try_load(model_path: &Path, gpu: bool) -> Result<WhisperContext> {
+    let mut params = WhisperContextParameters::default();
+    params.use_gpu(gpu);
+    WhisperContext::new_with_params(model_path, params)
+        .with_context(|| format!("WhisperContext init (gpu={gpu})"))
 }
 
 /// Read a WAV file from disk and return f32 samples that are mono and 16 kHz —

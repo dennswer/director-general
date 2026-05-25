@@ -59,4 +59,43 @@ Cerință explicită Sergiu. Are tradeoff: în terminale/dead key Windows poate 
 
 **Soluție:** `build-rust.cmd` adaugă explicit căile absolute la PATH înainte de cargo. Poate fi fix-uit definitiv reluând bash-ul.
 
-## TBD — adăug pe parcurs
+## 2026-05-25 — Faza 8 — Director General rebrand & feature pack
+
+### De ce low-level keyboard hook pentru Caps Lock (nu RegisterHotKey)
+`tauri-plugin-global-shortcut` folosește `RegisterHotKey` din Win32. Acel API doar **notifică** că s-a apăsat o tastă — nu o **consumă**. Dacă setezi Caps Lock ca hotkey prin RegisterHotKey, primești evenimentul DAR Windows tot face toggle pe Caps Lock — exact ce nu vrem.
+
+**Soluție:** `SetWindowsHookExW(WH_KEYBOARD_LL, ...)` instalează un hook de nivel jos care primește **toate** apăsările de tastă înainte ca OS să le proceseze. Returnând `LRESULT(1)` din `keyboard_proc`, tasta dispare — nu mai ajunge la OS, deci niciun toggle.
+
+**Tradeoff:**
+- Hook-ul trebuie să ruleze pe un thread cu message pump (`GetMessageW` loop). Nu se poate face în main thread.
+- Cross-thread communication via `mpsc::Sender<()>` într-un `OnceLock<HookState>`.
+- Funcționează DOAR pe Windows (cfg-gated).
+- Cere admin? Nu, hook-urile LL nu cer privilegii.
+
+### De ce overlay window separat (nu webview popup)
+Vrem un widget tip equalizer mereu vizibil în timpul recording-ului. Opțiuni:
+1. **Popup în main window** — dispare când minimizezi main → useless
+2. **Notification toast** — Windows OS toast e ne-customizabil, dispare după ~5s
+3. **A doua fereastră Tauri** — full control: alwaysOnTop, transparent, skipTaskbar, focus:false (nu fură focus)
+
+Opțiunea 3 câștigă. Cost: Vite multi-page (2 entry points, 2 HTML files), capabilities listează ambele windows, sincronizare via `app.listen("mode-changed")`.
+
+### De ce equalizer fake (sin/cos), nu Web Audio API real
+Audio capture-ul e în Rust (cpal), pe alt thread. Overlay-ul nu are acces direct la mic. Două opțiuni:
+1. Rust emite eveniment cu RMS la fiecare 50ms → overlay listen + animație reală
+2. CSS animație cu valori random/sinusoidal → "feels alive"
+
+MVP merge cu opțiunea 2 (zero adăugat în Rust hot path). Dacă utilizatorul vrea feedback real, e o linie de cod în audio.rs să emit RMS.
+
+### De ce whisper-rs cuda → optional feature
+GitHub Actions Windows runners NU au CUDA Toolkit (e ~3 GB de descărcat, ~20 min de instalat). Build local cu CUDA = 1-3s real-time factor (RTX 3050), CPU build = 5-15x mai lent dar funcționează pe orice mașină.
+
+**Soluție:** `cuda = ["whisper-rs/cuda"]` în `[features]`. CI build = CPU (default). Local: `npm run tauri build -- --features cuda`. Best of both.
+
+### De ce active window title capturat ÎNAINTE de orice altceva
+`GetForegroundWindow()` returnează handle-ul ferestrei OS focused. Dacă hotkey-ul e apăsat în Word, foreground e Word. DAR dacă Tauri arată overlay-ul/orice → foreground devine Tauri.
+
+**Soluție:** capturăm window title în primul lucru din `on_press` (mode == Idle), îl punem în `state.pending_window_title`. La final, când scriem HistoryEntry, îl drenăm din state. Funcționează indiferent ce se întâmplă în between.
+
+### De ce `windows = "0.58"` (nu 0.62)
+Tauri 2.10 are deja windows-core 0.58 în tree. Folosind aceeași versiune evităm duplicare în Cargo.lock (~30 MB extra crate-uri pentru nimic).

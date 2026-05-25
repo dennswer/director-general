@@ -12,8 +12,8 @@ jobs:
     runs-on: windows-latest
 
     env:
-      # whisper.cpp needs cmake/clang; we use the Ninja generator because the
-      # MSBuild generator picks the wrong VS edition in CI.
+      # whisper.cpp needs cmake + clang for bindgen; we use the Ninja generator
+      # because the MSBuild generator picks the wrong VS edition in CI.
       CMAKE_GENERATOR: Ninja
       LIBCLANG_PATH: C:\Program Files\LLVM\bin
 
@@ -37,22 +37,42 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-cuda-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-cuda-
 
       - name: Install Ninja + LLVM (for whisper.cpp bindgen)
         run: |
           choco install ninja -y --no-progress
           choco install llvm -y --no-progress
 
+      - name: Install CUDA Toolkit 12.6
+        uses: Jimver/cuda-toolkit@v0.2.19
+        id: cuda-toolkit
+        with:
+          cuda: "12.6.0"
+          method: "network"
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "thrust", "visual_studio_integration"]'
+          use-github-cache: false
+
+      - name: Verify CUDA install
+        shell: pwsh
+        run: |
+          Write-Host "CUDA_PATH = $env:CUDA_PATH"
+          & "$env:CUDA_PATH\bin\nvcc.exe" --version
+          Get-ChildItem "$env:CUDA_PATH\bin\cudart64_12.dll", "$env:CUDA_PATH\bin\cublas64_12.dll", "$env:CUDA_PATH\bin\cublasLt64_12.dll"
+
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Tauri build (CPU, self-signed bundle)
-        # CPU build only — GitHub-hosted Windows runners don't ship CUDA.
-        # Local users with a GPU rebuild with `--features cuda`.
-        run: npm run tauri build
+      - name: Tauri build (CUDA, self-signed bundle)
+        # Build with the `cuda` feature so whisper.cpp uses the GPU. The MSI
+        # bundles cudart/cublas DLLs alongside the exe via the WiX fragment,
+        # so the installer is self-contained for any machine with an NVIDIA
+        # driver (no separate CUDA Toolkit install required on the user side).
+        run: npm run tauri build -- --features cuda
+        env:
+          CUDA_PATH: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
 
       - name: Upload installers
         if: success()

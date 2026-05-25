@@ -39,3 +39,6 @@ screenshots/
 # Playwright
 test-results
 playwright-report
+
+# Claude Code local settings (may contain approved-command snapshots with secrets)
+.claude/
